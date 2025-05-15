@@ -1,0 +1,309 @@
+<?php
+// php/paneles/profesor_panel_contenido.php
+// (Inicio del archivo igual que antes: protecciones, variables de sesión, etc.)
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_rol_id']) || $_SESSION['user_rol_id'] != 2) {
+    echo "<p>Acceso restringido. Este panel es solo para profesores.</p>";
+    return;
+}
+$id_profesor_actual = $_SESSION['user_id'];
+$action = $_REQUEST['action'] ?? 'inicio_profesor';
+$id_grupo_seleccionado = isset($_REQUEST['id_grupo']) ? (int)$_REQUEST['id_grupo'] : null;
+$id_actividad_seleccionada = isset($_REQUEST['id_actividad']) ? (int)$_REQUEST['id_actividad'] : null; // Para seleccionar la actividad
+$fecha_asistencia_seleccionada = isset($_REQUEST['fecha_asistencia']) ? trim($_REQUEST['fecha_asistencia']) : date('Y-m-d');
+
+// ----------------------------------------------------------------------------
+// PARTE 1: PROCESAMIENTO DE ACCIONES (Formularios que guardan y redirigen)
+// ----------------------------------------------------------------------------
+if ($action == 'guardar_nueva_tarea') {
+    // ... (Código existente de guardar_nueva_tarea) ...
+    if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['guardar_tarea'])) {
+        $id_grupo_fk = (int)$_POST['id_grupo_fk']; $titulo_actividad = trim($_POST['titulo_actividad']); $descripcion_actividad = trim($_POST['descripcion_actividad']); $tipo_actividad = trim($_POST['tipo_actividad']); $fecha_entrega_limite_str = trim($_POST['fecha_entrega_limite']); $ponderacion_str = trim($_POST['ponderacion']); $max_calificacion_str = trim($_POST['max_calificacion']); $errors = [];
+        if (empty($id_grupo_fk)) $errors[] = "ID de grupo no especificado."; if (empty($titulo_actividad)) $errors[] = "El título es obligatorio."; if (empty($tipo_actividad)) $errors[] = "El tipo de actividad es obligatorio."; $tipos_permitidos = ['Tarea', 'Proyecto', 'Laboratorio']; if (!in_array($tipo_actividad, $tipos_permitidos)) $errors[] = "Tipo de actividad no válido para Tarea/Trabajo."; if (empty($max_calificacion_str) || !is_numeric($max_calificacion_str) || $max_calificacion_str <= 0) { $errors[] = "La calificación máxima debe ser un número positivo."; } $max_calificacion = (float)$max_calificacion_str; $fecha_entrega_limite_db = NULL; if (!empty($fecha_entrega_limite_str)) { try { $date_obj = new DateTime($fecha_entrega_limite_str); $fecha_entrega_limite_db = $date_obj->format('Y-m-d H:i:s'); } catch (Exception $e) { $errors[] = "Formato de fecha límite inválido."; } } $ponderacion_db = NULL; if (!empty($ponderacion_str)) { if (!is_numeric($ponderacion_str) || $ponderacion_str < 0 || $ponderacion_str > 1) { $errors[] = "La ponderación debe ser un número entre 0 y 1 (ej: 0.20)."; } else { $ponderacion_db = (float)$ponderacion_str; } }
+        if (empty($errors)) { $sql_check_group_owner = "SELECT id_grupo FROM GRUPOS_CURSO WHERE id_grupo = ? AND id_profesor_fk = ?"; $stmt_check_owner = mysqli_prepare($conn, $sql_check_group_owner); if ($stmt_check_owner) { mysqli_stmt_bind_param($stmt_check_owner, "ii", $id_grupo_fk, $id_profesor_actual); mysqli_stmt_execute($stmt_check_owner); $result_check_owner = mysqli_stmt_get_result($stmt_check_owner); if (mysqli_num_rows($result_check_owner) == 0) { $errors[] = "No tienes permiso para asignar tareas a este grupo."; } mysqli_stmt_close($stmt_check_owner); } else { $errors[] = "Error de seguridad al verificar el grupo."; error_log("Error al preparar stmt_check_owner en guardar_nueva_tarea: " . mysqli_error($conn)); } }
+        if (!empty($errors)) { $_SESSION['message'] = implode("<br>", $errors); $_SESSION['message_type'] = 'error'; header("Location: dashboard.php?action=asignar_tareas_trabajos&id_grupo=" . $id_grupo_fk); exit; }
+        $sql_insert_actividad = "INSERT INTO ACTIVIDADES_EVALUABLES (id_grupo_fk, titulo_actividad, descripcion_actividad, tipo_actividad, fecha_publicacion, fecha_entrega_limite, ponderacion, max_calificacion) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?)"; $stmt_insert = mysqli_prepare($conn, $sql_insert_actividad);
+        if ($stmt_insert) { mysqli_stmt_bind_param($stmt_insert, "issssdd", $id_grupo_fk, $titulo_actividad, $descripcion_actividad, $tipo_actividad, $fecha_entrega_limite_db, $ponderacion_db, $max_calificacion ); if (mysqli_stmt_execute($stmt_insert)) { $_SESSION['message'] = "Tarea/Trabajo '" . htmlspecialchars($titulo_actividad) . "' asignada exitosamente."; $_SESSION['message_type'] = 'success'; } else { $_SESSION['message'] = "Error al guardar la tarea: " . mysqli_stmt_error($stmt_insert); $_SESSION['message_type'] = 'error'; error_log("Error al ejecutar insert actividad (tarea): " . mysqli_stmt_error($stmt_insert)); } mysqli_stmt_close($stmt_insert);
+        } else { $_SESSION['message'] = "Error al preparar la consulta para guardar la tarea: " . mysqli_error($conn); $_SESSION['message_type'] = 'error'; error_log("Error al preparar insert actividad (tarea): " . mysqli_error($conn)); }
+        header("Location: dashboard.php?action=asignar_tareas_trabajos&id_grupo=" . $id_grupo_fk); exit;
+    } else { $_SESSION['message'] = "Acceso inválido para guardar tarea."; $_SESSION['message_type'] = 'error'; header("Location: dashboard.php?action=asignar_tareas_trabajos"); exit; }
+} elseif ($action == 'guardar_nueva_evaluacion') {
+    // ... (Código existente de guardar_nueva_evaluacion) ...
+    if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['guardar_evaluacion'])) {
+        $id_grupo_fk = (int)$_POST['id_grupo_fk']; $titulo_actividad = trim($_POST['titulo_actividad']); $descripcion_actividad = trim($_POST['descripcion_actividad']); $tipo_actividad = trim($_POST['tipo_actividad']); $fecha_evaluacion_str = trim($_POST['fecha_evaluacion']); $ponderacion_str = trim($_POST['ponderacion']); $max_calificacion_str = trim($_POST['max_calificacion']); $errors = [];
+        if (empty($id_grupo_fk)) $errors[] = "ID de grupo no especificado."; if (empty($titulo_actividad)) $errors[] = "El título de la evaluación es obligatorio."; if (empty($tipo_actividad)) $errors[] = "El tipo de evaluación es obligatorio."; $tipos_eval_permitidos = ['Examen Parcial', 'Examen Final', 'Quiz']; if (!in_array($tipo_actividad, $tipos_eval_permitidos)) $errors[] = "Tipo de evaluación no válido."; if (empty($max_calificacion_str) || !is_numeric($max_calificacion_str) || $max_calificacion_str <= 0) { $errors[] = "La calificación máxima debe ser un número positivo."; } $max_calificacion = (float)$max_calificacion_str; $fecha_evaluacion_db = NULL; if (!empty($fecha_evaluacion_str)) { try { $date_obj = new DateTime($fecha_evaluacion_str); $fecha_evaluacion_db = $date_obj->format('Y-m-d H:i:s'); } catch (Exception $e) { $errors[] = "Formato de fecha de evaluación inválido."; } } $ponderacion_db = NULL; if (!empty($ponderacion_str)) { if (!is_numeric($ponderacion_str) || $ponderacion_str < 0 || $ponderacion_str > 1) { $errors[] = "La ponderación debe ser un número entre 0 y 1."; } else { $ponderacion_db = (float)$ponderacion_str; } }
+        if (empty($errors)) { $sql_check_group_owner = "SELECT id_grupo FROM GRUPOS_CURSO WHERE id_grupo = ? AND id_profesor_fk = ?"; $stmt_check_owner = mysqli_prepare($conn, $sql_check_group_owner); if ($stmt_check_owner) { mysqli_stmt_bind_param($stmt_check_owner, "ii", $id_grupo_fk, $id_profesor_actual); mysqli_stmt_execute($stmt_check_owner); $result_check_owner = mysqli_stmt_get_result($stmt_check_owner); if (mysqli_num_rows($result_check_owner) == 0) { $errors[] = "No tienes permiso para asignar evaluaciones a este grupo."; } mysqli_stmt_close($stmt_check_owner); } else { $errors[] = "Error de seguridad al verificar el grupo."; error_log("Error al preparar stmt_check_owner en guardar_nueva_evaluacion: " . mysqli_error($conn)); } }
+        if (!empty($errors)) { $_SESSION['message'] = implode("<br>", $errors); $_SESSION['message_type'] = 'error'; header("Location: dashboard.php?action=cargar_evaluaciones_profesor&id_grupo=" . $id_grupo_fk); exit; }
+        $sql_insert_evaluacion = "INSERT INTO ACTIVIDADES_EVALUABLES (id_grupo_fk, titulo_actividad, descripcion_actividad, tipo_actividad, fecha_publicacion, fecha_entrega_limite, ponderacion, max_calificacion) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?)"; $stmt_insert = mysqli_prepare($conn, $sql_insert_evaluacion);
+        if ($stmt_insert) { mysqli_stmt_bind_param($stmt_insert, "issssdd", $id_grupo_fk, $titulo_actividad, $descripcion_actividad, $tipo_actividad, $fecha_evaluacion_db, $ponderacion_db, $max_calificacion ); if (mysqli_stmt_execute($stmt_insert)) { $_SESSION['message'] = "Evaluación '" . htmlspecialchars($titulo_actividad) . "' cargada exitosamente."; $_SESSION['message_type'] = 'success'; } else { $_SESSION['message'] = "Error al guardar la evaluación: " . mysqli_stmt_error($stmt_insert); $_SESSION['message_type'] = 'error'; error_log("Error al ejecutar insert actividad (evaluacion): " . mysqli_stmt_error($stmt_insert)); } mysqli_stmt_close($stmt_insert);
+        } else { $_SESSION['message'] = "Error al preparar la consulta para guardar la evaluación: " . mysqli_error($conn); $_SESSION['message_type'] = 'error'; error_log("Error al preparar insert actividad (evaluacion): " . mysqli_error($conn)); }
+        header("Location: dashboard.php?action=cargar_evaluaciones_profesor&id_grupo=" . $id_grupo_fk); exit;
+    } else { $_SESSION['message'] = "Acceso inválido para guardar evaluación."; $_SESSION['message_type'] = 'error'; header("Location: dashboard.php?action=cargar_evaluaciones_profesor"); exit; }
+} elseif ($action == 'guardar_asistencia_grupo') {
+    // ... (Código existente de guardar_asistencia_grupo - SIN CAMBIOS) ...
+    if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['guardar_asistencia'])) {
+        $id_grupo_fk_asistencia = isset($_POST['id_grupo_fk']) ? (int)$_POST['id_grupo_fk'] : null; $fecha_asistencia_post = isset($_POST['fecha_asistencia']) ? trim($_POST['fecha_asistencia']) : null; $asistencias_data = $_POST['asistencia'] ?? []; $errors_asistencia = [];
+        if (empty($id_grupo_fk_asistencia)) $errors_asistencia[] = "ID de grupo no especificado para la asistencia."; if (empty($fecha_asistencia_post)) { $errors_asistencia[] = "Fecha de asistencia no especificada."; } else { try { $date_obj_asist = new DateTime($fecha_asistencia_post); $fecha_asistencia_db_validada = $date_obj_asist->format('Y-m-d'); } catch (Exception $e) { $errors_asistencia[] = "Formato de fecha de asistencia inválido."; $fecha_asistencia_db_validada = null; } }
+        if (empty($errors_asistencia) && $id_grupo_fk_asistencia) { $sql_check_group_owner_asist = "SELECT id_grupo FROM GRUPOS_CURSO WHERE id_grupo = ? AND id_profesor_fk = ?"; $stmt_check_owner_asist = mysqli_prepare($conn, $sql_check_group_owner_asist); if ($stmt_check_owner_asist) { mysqli_stmt_bind_param($stmt_check_owner_asist, "ii", $id_grupo_fk_asistencia, $id_profesor_actual); mysqli_stmt_execute($stmt_check_owner_asist); $result_check_owner_asist = mysqli_stmt_get_result($stmt_check_owner_asist); if (mysqli_num_rows($result_check_owner_asist) == 0) { $errors_asistencia[] = "No tienes permiso para registrar asistencia en este grupo."; } mysqli_stmt_close($stmt_check_owner_asist); } else { $errors_asistencia[] = "Error de seguridad al verificar el grupo para asistencia."; error_log("Error al preparar stmt_check_owner_asist: " . mysqli_error($conn)); } }
+        $estados_asistencia_validos = ['Presente', 'Ausente', 'Justificado', 'Tardanza']; $registros_procesados_ok = 0; $registros_con_error = 0;
+        if (empty($errors_asistencia) && $fecha_asistencia_db_validada && !empty($asistencias_data)) {
+            foreach ($asistencias_data as $id_matricula_str => $data_asistencia) { $id_matricula = (int)$id_matricula_str; $estado_asistencia = trim($data_asistencia['estado']); $observaciones = trim($data_asistencia['observaciones']); if (!in_array($estado_asistencia, $estados_asistencia_validos)) { $registros_con_error++; error_log("Estado de asistencia inválido ('$estado_asistencia') para matrícula ID $id_matricula"); continue; }
+                $sql_check_asist = "SELECT id_asistencia FROM ASISTENCIA_CLASE WHERE id_matricula_fk = ? AND fecha_clase = ?"; $stmt_check_asist = mysqli_prepare($conn, $sql_check_asist); mysqli_stmt_bind_param($stmt_check_asist, "is", $id_matricula, $fecha_asistencia_db_validada); mysqli_stmt_execute($stmt_check_asist); $result_check_asist = mysqli_stmt_get_result($stmt_check_asist); $existing_record = mysqli_fetch_assoc($result_check_asist); mysqli_stmt_close($stmt_check_asist);
+                if ($existing_record) { $sql_update_asist = "UPDATE ASISTENCIA_CLASE SET estado_asistencia = ?, observaciones = ? WHERE id_asistencia = ?"; $stmt_upsert = mysqli_prepare($conn, $sql_update_asist); mysqli_stmt_bind_param($stmt_upsert, "ssi", $estado_asistencia, $observaciones, $existing_record['id_asistencia']);
+                } else { $sql_insert_asist = "INSERT INTO ASISTENCIA_CLASE (id_matricula_fk, fecha_clase, estado_asistencia, observaciones) VALUES (?, ?, ?, ?)"; $stmt_upsert = mysqli_prepare($conn, $sql_insert_asist); mysqli_stmt_bind_param($stmt_upsert, "isss", $id_matricula, $fecha_asistencia_db_validada, $estado_asistencia, $observaciones); }
+                if ($stmt_upsert && mysqli_stmt_execute($stmt_upsert)) { $registros_procesados_ok++; } else { $registros_con_error++; error_log("Error al guardar/actualizar asistencia para matrícula ID $id_matricula: " . ($stmt_upsert ? mysqli_stmt_error($stmt_upsert) : mysqli_error($conn))); } if ($stmt_upsert) mysqli_stmt_close($stmt_upsert); }
+        } elseif (empty($asistencias_data) && empty($errors_asistencia)) { $errors_asistencia[] = "No se recibieron datos de asistencia para procesar."; }
+        if (!empty($errors_asistencia)) { $_SESSION['message'] = implode("<br>", $errors_asistencia); $_SESSION['message_type'] = 'error';
+        } else { $success_msg = "Asistencia guardada. Registros procesados exitosamente: $registros_procesados_ok."; if ($registros_con_error > 0) { $success_msg .= " Registros con error: $registros_con_error."; $_SESSION['message_type'] = 'warning'; } else { $_SESSION['message_type'] = 'success'; } $_SESSION['message'] = $success_msg; }
+        header("Location: dashboard.php?action=registrar_asistencia&id_grupo=" . $id_grupo_fk_asistencia . "&fecha_asistencia=" . $fecha_asistencia_post); exit;
+    } else { $_SESSION['message'] = "Acceso inválido para guardar asistencia."; $_SESSION['message_type'] = 'error'; header("Location: dashboard.php?action=registrar_asistencia"); exit; }
+}
+// Aquí puedes añadir el `elseif ($action == 'guardar_notas_actividad')` en el futuro
+
+
+// Mostrar mensajes de sesión
+// ... (código HTML existente: bienvenida, menú <nav>) ...
+if (isset($_SESSION['message'])) {
+    $message_type = $_SESSION['message_type'] ?? 'info';
+    echo '<div class="message ' . htmlspecialchars($message_type) . '" style="margin-bottom: 20px;">' . htmlspecialchars($_SESSION['message']) . '</div>';
+    unset($_SESSION['message']);
+    unset($_SESSION['message_type']);
+}
+?>
+
+<h1>Módulo Profesor</h1>
+<p>Bienvenido/a, Profesor/a <?php echo htmlspecialchars($_SESSION['user_nombre']); ?>.</p>
+<nav class="module-menu">
+    <ul>
+        <li><a href="dashboard.php?action=cargar_modificar_notas">1. Cargar/modificar notas</a></li>
+        <li><a href="dashboard.php?action=publicar_notas_definitivas">2. Publicar notas definitivas</a></li>
+        <li><a href="dashboard.php?action=enviar_mensajes_alertas">3. Enviar mensajes/alertas</a></li>
+        <li><a href="dashboard.php?action=registrar_asistencia">4. Registrar asistencia</a></li>
+        <li><a href="dashboard.php?action=cargar_informes_profesor">5. Cargar informes</a></li>
+        <li><a href="dashboard.php?action=asignar_tareas_trabajos">6. Asignar tareas/trabajos</a></li>
+        <li><a href="dashboard.php?action=cargar_evaluaciones_profesor">7. Cargar evaluaciones</a></li>
+    </ul>
+</nav>
+<hr style="margin: 20px 0;">
+
+<?php
+// Manejar la acción específica para mostrar contenido
+switch ($action) {
+    case 'asignar_tareas_trabajos':
+        // ... (Código existente) ...
+        echo "<h2>Asignar Nuevas Tareas o Trabajos</h2>";
+        $sql_grupos_profesor_tareas = "SELECT gc.id_grupo, gc.nombre_grupo, gc.semestre, c.nombre_curso FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_profesor_fk = ? ORDER BY c.nombre_curso, gc.semestre DESC, gc.nombre_grupo";
+        $stmt_grupos_tareas = mysqli_prepare($conn, $sql_grupos_profesor_tareas);
+        if ($stmt_grupos_tareas) {
+            mysqli_stmt_bind_param($stmt_grupos_tareas, "i", $id_profesor_actual); mysqli_stmt_execute($stmt_grupos_tareas); $result_grupos_tareas = mysqli_stmt_get_result($stmt_grupos_tareas);
+            if (mysqli_num_rows($result_grupos_tareas) > 0) {
+                echo "<form method='get' action='dashboard.php' style='margin-bottom:20px;'>"; echo "<input type='hidden' name='action' value='asignar_tareas_trabajos'>"; echo "<label for='id_grupo_select_tareas'>Seleccione un Grupo:</label>"; echo "<select name='id_grupo' id='id_grupo_select_tareas' onchange='this.form.submit()' style='padding: 8px; margin-left: 10px; border-radius: 4px;'>"; echo "<option value=''>-- Elija un grupo --</option>"; while ($grupo = mysqli_fetch_assoc($result_grupos_tareas)) { $selected = ($id_grupo_seleccionado == $grupo['id_grupo']) ? "selected" : ""; echo "<option value='" . htmlspecialchars($grupo['id_grupo']) . "' $selected>" . htmlspecialchars($grupo['nombre_curso'] . " - " . $grupo['nombre_grupo'] . " (" . $grupo['semestre'] . ")") . "</option>"; } echo "</select>"; echo "</form>";
+                if ($id_grupo_seleccionado) {
+                    $stmt_nombre_grupo_sel_tareas = mysqli_prepare($conn, "SELECT c.nombre_curso, gc.nombre_grupo, gc.semestre FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_grupo = ? AND gc.id_profesor_fk = ?"); $nombre_grupo_display_tareas = "Grupo no válido o no autorizado"; if($stmt_nombre_grupo_sel_tareas){ mysqli_stmt_bind_param($stmt_nombre_grupo_sel_tareas, "ii", $id_grupo_seleccionado, $id_profesor_actual); mysqli_stmt_execute($stmt_nombre_grupo_sel_tareas); $result_nombre_grupo_sel_tareas = mysqli_stmt_get_result($stmt_nombre_grupo_sel_tareas); if($data_grupo_sel_tareas = mysqli_fetch_assoc($result_nombre_grupo_sel_tareas)){ $nombre_grupo_display_tareas = htmlspecialchars($data_grupo_sel_tareas['nombre_curso'] . " - " . $data_grupo_sel_tareas['nombre_grupo'] . " (" . $data_grupo_sel_tareas['semestre'] . ")"); } mysqli_stmt_close($stmt_nombre_grupo_sel_tareas); }
+                    echo "<hr style='margin: 25px 0;'>"; echo "<h3>Tareas/Trabajos Existentes para: " . $nombre_grupo_display_tareas . "</h3>"; $tipos_tareas_display = ['Tarea', 'Proyecto', 'Laboratorio']; $placeholders_display = implode(',', array_fill(0, count($tipos_tareas_display), '?')); $sql_tareas_existentes = "SELECT id_actividad, titulo_actividad, tipo_actividad, fecha_publicacion, fecha_entrega_limite, ponderacion, max_calificacion FROM ACTIVIDADES_EVALUABLES WHERE id_grupo_fk = ? AND tipo_actividad IN ($placeholders_display) ORDER BY fecha_publicacion DESC";
+                    $stmt_tareas_existentes = mysqli_prepare($conn, $sql_tareas_existentes); if ($stmt_tareas_existentes) { $bind_types_display = "i" . str_repeat('s', count($tipos_tareas_display)); $bind_params_display = array_merge([$id_grupo_seleccionado], $tipos_tareas_display); $ref_params_display = []; foreach ($bind_params_display as $key => $value) { $ref_params_display[$key] = &$bind_params_display[$key]; } call_user_func_array('mysqli_stmt_bind_param', array_merge([$stmt_tareas_existentes, $bind_types_display], $ref_params_display)); mysqli_stmt_execute($stmt_tareas_existentes); $result_tareas_existentes = mysqli_stmt_get_result($stmt_tareas_existentes);
+                        if (mysqli_num_rows($result_tareas_existentes) > 0) { echo "<table border='1' style='width:100%; border-collapse: collapse; margin-bottom: 30px;'>"; echo "<thead><tr><th>Título</th><th>Tipo</th><th>Publicada</th><th>Límite Entrega</th><th>Ponderación</th><th>Máx. Calif.</th><th>Acciones</th></tr></thead>"; echo "<tbody>"; while($tarea_existente = mysqli_fetch_assoc($result_tareas_existentes)) { echo "<tr>"; echo "<td>" . htmlspecialchars($tarea_existente['titulo_actividad']) . "</td>"; echo "<td>" . htmlspecialchars($tarea_existente['tipo_actividad']) . "</td>"; echo "<td>" . htmlspecialchars(date("d/m/Y H:i", strtotime($tarea_existente['fecha_publicacion']))) . "</td>"; echo "<td>" . ($tarea_existente['fecha_entrega_limite'] ? htmlspecialchars(date("d/m/Y H:i", strtotime($tarea_existente['fecha_entrega_limite']))) : 'N/A') . "</td>"; echo "<td>" . ($tarea_existente['ponderacion'] ? htmlspecialchars($tarea_existente['ponderacion']*100).'%' : 'N/A') . "</td>"; echo "<td>" . htmlspecialchars($tarea_existente['max_calificacion']) . "</td>"; echo "<td><a href='#' style='font-size:0.9em;'>Editar</a> <a href='#' style='font-size:0.9em; color:red;'>Eliminar</a></td>"; echo "</tr>"; } echo "</tbody></table>";
+                        } else { echo "<p>No hay tareas o trabajos asignados para este grupo todavía.</p>"; } mysqli_stmt_close($stmt_tareas_existentes);
+                    } else { error_log("Error al preparar consulta de tareas existentes: " . mysqli_error($conn)); echo "<p>Error al cargar tareas existentes.</p>"; }
+                    echo "<hr style='margin: 25px 0;'>"; echo "<h3>Crear Nueva Tarea/Trabajo para: " . $nombre_grupo_display_tareas . "</h3>";
+                    echo "<form action='dashboard.php?action=guardar_nueva_tarea' method='post' style='max-width: 600px;'>"; echo "<input type='hidden' name='id_grupo_fk' value='" . htmlspecialchars($id_grupo_seleccionado) . "'>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='titulo_actividad_tarea' style='display:block; margin-bottom:5px;'>Título:</label><input type='text' name='titulo_actividad' id='titulo_actividad_tarea' required style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='descripcion_actividad_tarea' style='display:block; margin-bottom:5px;'>Descripción:</label><textarea name='descripcion_actividad' id='descripcion_actividad_tarea' rows='4' style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></textarea></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='tipo_actividad_tarea' style='display:block; margin-bottom:5px;'>Tipo:</label><select name='tipo_actividad' id='tipo_actividad_tarea' required style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'><option value='Tarea'>Tarea</option><option value='Proyecto'>Proyecto</option><option value='Laboratorio'>Laboratorio</option></select></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='fecha_entrega_limite_tarea' style='display:block; margin-bottom:5px;'>Fecha Límite (Opcional):</label><input type='datetime-local' name='fecha_entrega_limite' id='fecha_entrega_limite_tarea' style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='ponderacion_tarea' style='display:block; margin-bottom:5px;'>Ponderación (0-1, Opcional):</label><input type='number' name='ponderacion' id='ponderacion_tarea' step='0.01' min='0' max='1' style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='max_calificacion_tarea' style='display:block; margin-bottom:5px;'>Calificación Máxima:</label><input type='number' name='max_calificacion' id='max_calificacion_tarea' step='0.1' value='5.0' required style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<button type='submit' name='guardar_tarea' style='padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;'>Guardar Tarea/Trabajo</button>"; echo "</form>";
+                }
+            } else { echo "<p>No tienes grupos asignados actualmente o no se pudieron cargar.</p>"; } mysqli_stmt_close($stmt_grupos_tareas);
+        } else { error_log("Error al preparar la consulta de grupos del profesor (tareas): " . mysqli_error($conn)); echo "<p>Error al cargar tus grupos. Por favor, intenta más tarde.</p>";}
+        break;
+    case 'cargar_evaluaciones_profesor':
+        // ... (Código existente) ...
+        echo "<h2>Cargar Nuevas Evaluaciones</h2>";
+        $sql_grupos_profesor_eval = "SELECT gc.id_grupo, gc.nombre_grupo, gc.semestre, c.nombre_curso FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_profesor_fk = ? ORDER BY c.nombre_curso, gc.semestre DESC, gc.nombre_grupo";
+        $stmt_grupos_eval = mysqli_prepare($conn, $sql_grupos_profesor_eval);
+        if ($stmt_grupos_eval) {
+            mysqli_stmt_bind_param($stmt_grupos_eval, "i", $id_profesor_actual); mysqli_stmt_execute($stmt_grupos_eval); $result_grupos_eval = mysqli_stmt_get_result($stmt_grupos_eval);
+            if (mysqli_num_rows($result_grupos_eval) > 0) {
+                echo "<form method='get' action='dashboard.php' style='margin-bottom:20px;'>"; echo "<input type='hidden' name='action' value='cargar_evaluaciones_profesor'>"; echo "<label for='id_grupo_select_eval'>Seleccione un Grupo:</label>"; echo "<select name='id_grupo' id='id_grupo_select_eval' onchange='this.form.submit()' style='padding: 8px; margin-left: 10px; border-radius: 4px;'>"; echo "<option value=''>-- Elija un grupo --</option>"; while ($grupo = mysqli_fetch_assoc($result_grupos_eval)) { $selected = ($id_grupo_seleccionado == $grupo['id_grupo']) ? "selected" : ""; echo "<option value='" . htmlspecialchars($grupo['id_grupo']) . "' $selected>" . htmlspecialchars($grupo['nombre_curso'] . " - " . $grupo['nombre_grupo'] . " (" . $grupo['semestre'] . ")") . "</option>"; } echo "</select>"; echo "</form>";
+                if ($id_grupo_seleccionado) {
+                    $stmt_nombre_grupo_sel_eval = mysqli_prepare($conn, "SELECT c.nombre_curso, gc.nombre_grupo, gc.semestre FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_grupo = ? AND gc.id_profesor_fk = ?"); $nombre_grupo_display_eval = "Grupo no válido o no autorizado"; if($stmt_nombre_grupo_sel_eval){ mysqli_stmt_bind_param($stmt_nombre_grupo_sel_eval, "ii", $id_grupo_seleccionado, $id_profesor_actual); mysqli_stmt_execute($stmt_nombre_grupo_sel_eval); $result_nombre_grupo_sel_eval = mysqli_stmt_get_result($stmt_nombre_grupo_sel_eval); if($data_grupo_sel_eval = mysqli_fetch_assoc($result_nombre_grupo_sel_eval)){ $nombre_grupo_display_eval = htmlspecialchars($data_grupo_sel_eval['nombre_curso'] . " - " . $data_grupo_sel_eval['nombre_grupo'] . " (" . $data_grupo_sel_eval['semestre'] . ")"); } mysqli_stmt_close($stmt_nombre_grupo_sel_eval); }
+                    echo "<hr style='margin: 25px 0;'>"; echo "<h3>Evaluaciones Existentes para: " . $nombre_grupo_display_eval . "</h3>"; $tipos_eval_display = ['Examen Parcial', 'Examen Final', 'Quiz']; $placeholders_eval_display = implode(',', array_fill(0, count($tipos_eval_display), '?')); $sql_eval_existentes = "SELECT id_actividad, titulo_actividad, tipo_actividad, fecha_publicacion, fecha_entrega_limite AS fecha_evaluacion, ponderacion, max_calificacion FROM ACTIVIDADES_EVALUABLES WHERE id_grupo_fk = ? AND tipo_actividad IN ($placeholders_eval_display) ORDER BY fecha_publicacion DESC";
+                    $stmt_eval_existentes = mysqli_prepare($conn, $sql_eval_existentes); if ($stmt_eval_existentes) { $bind_types_eval_display = "i" . str_repeat('s', count($tipos_eval_display)); $bind_params_eval_display = array_merge([$id_grupo_seleccionado], $tipos_eval_display); $ref_params_eval_display = []; foreach ($bind_params_eval_display as $key => $value) { $ref_params_eval_display[$key] = &$bind_params_eval_display[$key]; } call_user_func_array('mysqli_stmt_bind_param', array_merge([$stmt_eval_existentes, $bind_types_eval_display], $ref_params_eval_display)); mysqli_stmt_execute($stmt_eval_existentes); $result_eval_existentes = mysqli_stmt_get_result($stmt_eval_existentes);
+                        if (mysqli_num_rows($result_eval_existentes) > 0) { echo "<table border='1' style='width:100%; border-collapse: collapse; margin-bottom: 30px;'>"; echo "<thead><tr><th>Título</th><th>Tipo</th><th>Publicada</th><th>Fecha Evaluación</th><th>Ponderación</th><th>Máx. Calif.</th><th>Acciones</th></tr></thead>"; echo "<tbody>"; while($eval_existente = mysqli_fetch_assoc($result_eval_existentes)) { echo "<tr>"; echo "<td>" . htmlspecialchars($eval_existente['titulo_actividad']) . "</td>"; echo "<td>" . htmlspecialchars($eval_existente['tipo_actividad']) . "</td>"; echo "<td>" . htmlspecialchars(date("d/m/Y H:i", strtotime($eval_existente['fecha_publicacion']))) . "</td>"; echo "<td>" . ($eval_existente['fecha_evaluacion'] ? htmlspecialchars(date("d/m/Y H:i", strtotime($eval_existente['fecha_evaluacion']))) : 'N/A') . "</td>"; echo "<td>" . ($eval_existente['ponderacion'] ? htmlspecialchars($eval_existente['ponderacion']*100).'%' : 'N/A') . "</td>"; echo "<td>" . htmlspecialchars($eval_existente['max_calificacion']) . "</td>"; echo "<td><a href='#' style='font-size:0.9em;'>Editar</a> <a href='#' style='font-size:0.9em; color:red;'>Eliminar</a></td>"; echo "</tr>"; } echo "</tbody></table>";
+                        } else { echo "<p>No hay evaluaciones asignadas para este grupo todavía.</p>"; } mysqli_stmt_close($stmt_eval_existentes);
+                    } else { error_log("Error al preparar consulta de evaluaciones existentes: " . mysqli_error($conn)); echo "<p>Error al cargar evaluaciones existentes.</p>"; }
+                    echo "<hr style='margin: 25px 0;'>"; echo "<h3>Crear Nueva Evaluación para: " . $nombre_grupo_display_eval . "</h3>";
+                    echo "<form action='dashboard.php?action=guardar_nueva_evaluacion' method='post' style='max-width: 600px;'>"; echo "<input type='hidden' name='id_grupo_fk' value='" . htmlspecialchars($id_grupo_seleccionado) . "'>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='titulo_actividad_eval' style='display:block; margin-bottom:5px;'>Título Evaluación:</label><input type='text' name='titulo_actividad' id='titulo_actividad_eval' required style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='descripcion_actividad_eval' style='display:block; margin-bottom:5px;'>Descripción:</label><textarea name='descripcion_actividad' id='descripcion_actividad_eval' rows='3' style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></textarea></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='tipo_actividad_eval' style='display:block; margin-bottom:5px;'>Tipo Evaluación:</label><select name='tipo_actividad' id='tipo_actividad_eval' required style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'><option value='Examen Parcial'>Examen Parcial</option><option value='Examen Final'>Examen Final</option><option value='Quiz'>Quiz</option></select></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='fecha_evaluacion' style='display:block; margin-bottom:5px;'>Fecha y Hora Realización (Opcional):</label><input type='datetime-local' name='fecha_evaluacion' id='fecha_evaluacion' style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='ponderacion_eval' style='display:block; margin-bottom:5px;'>Ponderación (0-1, Opcional):</label><input type='number' name='ponderacion' id='ponderacion_eval' step='0.01' min='0' max='1' style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<div class='form-group' style='margin-bottom: 15px;'><label for='max_calificacion_eval' style='display:block; margin-bottom:5px;'>Calificación Máxima:</label><input type='number' name='max_calificacion' id='max_calificacion_eval' step='0.1' value='5.0' required style='width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;'></div>"; echo "<button type='submit' name='guardar_evaluacion' style='padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;'>Guardar Evaluación</button>"; echo "</form>";
+                }
+            } else { echo "<p>No tienes grupos asignados actualmente.</p>"; } mysqli_stmt_close($stmt_grupos_eval);
+        } else { error_log("Error al preparar la consulta de grupos del profesor (eval): " . mysqli_error($conn)); echo "<p>Error al cargar tus grupos.</p>"; }
+        break;
+    case 'registrar_asistencia':
+        // ... (Código existente) ...
+        echo "<h2>Registrar Asistencia</h2>";
+        $sql_grupos_asistencia = "SELECT gc.id_grupo, gc.nombre_grupo, gc.semestre, c.nombre_curso FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_profesor_fk = ? ORDER BY c.nombre_curso, gc.semestre DESC, gc.nombre_grupo";
+        $stmt_grupos_asistencia = mysqli_prepare($conn, $sql_grupos_asistencia);
+        if($stmt_grupos_asistencia) {
+            mysqli_stmt_bind_param($stmt_grupos_asistencia, "i", $id_profesor_actual); mysqli_stmt_execute($stmt_grupos_asistencia); $result_grupos_asistencia = mysqli_stmt_get_result($stmt_grupos_asistencia);
+            if (mysqli_num_rows($result_grupos_asistencia) > 0) {
+                echo "<form method='get' action='dashboard.php' style='margin-bottom:20px;'>"; echo "<input type='hidden' name='action' value='registrar_asistencia'>"; echo "<label for='id_grupo_asistencia'>Seleccione Grupo:</label> "; echo "<select name='id_grupo' id='id_grupo_asistencia' style='padding: 8px; border-radius: 4px;'>"; echo "<option value=''>-- Elija un grupo --</option>"; while ($grupo = mysqli_fetch_assoc($result_grupos_asistencia)) { $selected = ($id_grupo_seleccionado == $grupo['id_grupo']) ? "selected" : ""; echo "<option value='" . htmlspecialchars($grupo['id_grupo']) . "' $selected>" . htmlspecialchars($grupo['nombre_curso'] . " - " . $grupo['nombre_grupo'] . " (" . $grupo['semestre'] . ")") . "</option>"; } echo "</select>";
+                if ($id_grupo_seleccionado) { echo "<label for='fecha_asistencia' style='margin-left: 15px;'>Fecha de Clase:</label> "; echo "<input type='date' name='fecha_asistencia' id='fecha_asistencia' value='" . htmlspecialchars($fecha_asistencia_seleccionada) . "' required style='padding: 8px; border-radius: 4px;'>"; }
+                echo "<button type='submit' style='padding: 8px 12px; margin-left: 10px; background-color: #007bff; color:white; border:none; border-radius:4px;'>Cargar Estudiantes</button>"; echo "</form>";
+                if ($id_grupo_seleccionado && !empty($fecha_asistencia_seleccionada)) {
+                    try { $fecha_obj = new DateTime($fecha_asistencia_seleccionada); $fecha_asistencia_db = $fecha_obj->format('Y-m-d'); } catch (Exception $e) { echo "<p class='message error'>Fecha de asistencia no válida.</p>"; $fecha_asistencia_db = null; }
+                    if($fecha_asistencia_db) {
+                        $stmt_nombre_grupo_asist = mysqli_prepare($conn, "SELECT c.nombre_curso, gc.nombre_grupo, gc.semestre FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_grupo = ? AND gc.id_profesor_fk = ?"); $nombre_grupo_display_asist = ""; if($stmt_nombre_grupo_asist){ mysqli_stmt_bind_param($stmt_nombre_grupo_asist, "ii", $id_grupo_seleccionado, $id_profesor_actual); mysqli_stmt_execute($stmt_nombre_grupo_asist); $result_nombre_grupo_asist = mysqli_stmt_get_result($stmt_nombre_grupo_asist); if($data_grupo_asist = mysqli_fetch_assoc($result_nombre_grupo_asist)){ $nombre_grupo_display_asist = htmlspecialchars($data_grupo_asist['nombre_curso'] . " - " . $data_grupo_asist['nombre_grupo'] . " (" . $data_grupo_asist['semestre'] . ")"); } mysqli_stmt_close($stmt_nombre_grupo_asist); }
+                        echo "<hr style='margin:25px 0;'><h3>Registrar Asistencia para: " . $nombre_grupo_display_asist . "</h3>"; echo "<p><strong>Fecha Seleccionada:</strong> " . htmlspecialchars(date("d/m/Y", strtotime($fecha_asistencia_db))) . "</p>";
+                        $sql_estudiantes_grupo = "SELECT u.id_usuario, u.nombres, u.apellidos, me.id_matricula, ac.estado_asistencia, ac.observaciones FROM USUARIOS u JOIN MATRICULAS_ESTUDIANTES me ON u.id_usuario = me.id_estudiante_fk LEFT JOIN ASISTENCIA_CLASE ac ON me.id_matricula = ac.id_matricula_fk AND ac.fecha_clase = ? WHERE me.id_grupo_fk = ? AND u.estado = 'activo' AND me.estado_matricula = 'Activa' ORDER BY u.apellidos, u.nombres";
+                        $stmt_estudiantes = mysqli_prepare($conn, $sql_estudiantes_grupo);
+                        if ($stmt_estudiantes) {
+                            mysqli_stmt_bind_param($stmt_estudiantes, "si", $fecha_asistencia_db, $id_grupo_seleccionado); mysqli_stmt_execute($stmt_estudiantes); $result_estudiantes = mysqli_stmt_get_result($stmt_estudiantes);
+                            if (mysqli_num_rows($result_estudiantes) > 0) {
+                                echo "<form action='dashboard.php?action=guardar_asistencia_grupo' method='post'>"; echo "<input type='hidden' name='id_grupo_fk' value='" . htmlspecialchars($id_grupo_seleccionado) . "'>"; echo "<input type='hidden' name='fecha_asistencia' value='" . htmlspecialchars($fecha_asistencia_db) . "'>";
+                                echo "<table border='1' style='width:100%; border-collapse: collapse; margin-bottom: 20px;'>"; echo "<thead><tr><th>Estudiante</th><th>Estado Asistencia</th><th>Observaciones</th></tr></thead>"; echo "<tbody>"; $estados_asistencia = ['Presente', 'Ausente', 'Justificado', 'Tardanza']; while($estudiante = mysqli_fetch_assoc($result_estudiantes)) { echo "<tr>"; echo "<td>" . htmlspecialchars($estudiante['apellidos'] . ", " . $estudiante['nombres']) . "</td>"; echo "<td><select name='asistencia[" . $estudiante['id_matricula'] . "][estado]' style='padding:5px;'>"; foreach($estados_asistencia as $estado) { $selected_estado = ($estudiante['estado_asistencia'] == $estado) ? "selected" : ""; echo "<option value='" . $estado . "' $selected_estado>" . $estado . "</option>"; } echo "</select></td>"; echo "<td><input type='text' name='asistencia[" . $estudiante['id_matricula'] . "][observaciones]' value='" . htmlspecialchars($estudiante['observaciones'] ?? '') . "' style='width:98%; padding:5px;'></td>"; echo "</tr>"; } echo "</tbody></table>";
+                                echo "<button type='submit' name='guardar_asistencia' style='padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;'>Guardar Asistencia</button>"; echo "</form>";
+                            } else { echo "<p>No hay estudiantes activos matriculados en este grupo para la fecha seleccionada o no se pudieron cargar.</p>"; } mysqli_stmt_close($stmt_estudiantes);
+                        } else { error_log("Error al preparar consulta de estudiantes para asistencia: " . mysqli_error($conn)); echo "<p>Error al cargar la lista de estudiantes.</p>"; }
+                    }
+                }
+            } else { echo "<p>No tienes grupos asignados para registrar asistencia.</p>"; } mysqli_stmt_close($stmt_grupos_asistencia);
+        } else { error_log("Error al preparar consulta de grupos para asistencia: " . mysqli_error($conn)); echo "<p>Error al cargar tus grupos.</p>"; }
+        break;
+
+    case 'cargar_modificar_notas': // NUEVO CASE PARA CARGAR NOTAS (VISUALIZACIÓN)
+        echo "<h2>Cargar/Modificar Notas</h2>";
+
+        // Paso 1: Selección de Grupo
+        $sql_grupos_notas = "SELECT gc.id_grupo, gc.nombre_grupo, gc.semestre, c.nombre_curso FROM GRUPOS_CURSO gc JOIN CURSOS c ON gc.id_curso_fk = c.id_curso WHERE gc.id_profesor_fk = ? ORDER BY c.nombre_curso, gc.semestre DESC, gc.nombre_grupo";
+        $stmt_grupos_notas = mysqli_prepare($conn, $sql_grupos_notas);
+        if($stmt_grupos_notas) {
+            mysqli_stmt_bind_param($stmt_grupos_notas, "i", $id_profesor_actual);
+            mysqli_stmt_execute($stmt_grupos_notas);
+            $result_grupos_notas = mysqli_stmt_get_result($stmt_grupos_notas);
+
+            if (mysqli_num_rows($result_grupos_notas) > 0) {
+                // Formulario para seleccionar grupo y luego actividad
+                echo "<form method='get' action='dashboard.php' id='formSeleccionNotas' style='margin-bottom:20px;'>";
+                echo "<input type='hidden' name='action' value='cargar_modificar_notas'>";
+                
+                // Selector de Grupo
+                echo "<div style='margin-bottom:10px;'>";
+                echo "<label for='id_grupo_notas'>Seleccione Grupo:</label> ";
+                echo "<select name='id_grupo' id='id_grupo_notas' style='padding: 8px; border-radius: 4px;' onchange='var activityDropdown = document.getElementById(\"id_actividad_notas\"); if(activityDropdown){ activityDropdown.value=\"\"; } this.form.submit();'>"; // Limpiar actividad y enviar
+                echo "<option value=''>-- Elija un grupo --</option>";
+                while ($grupo = mysqli_fetch_assoc($result_grupos_notas)) {
+                    $selected = ($id_grupo_seleccionado == $grupo['id_grupo']) ? "selected" : "";
+                    echo "<option value='" . htmlspecialchars($grupo['id_grupo']) . "' $selected>" . htmlspecialchars($grupo['nombre_curso'] . " - " . $grupo['nombre_grupo'] . " (" . $grupo['semestre'] . ")") . "</option>";
+                }
+                echo "</select>";
+                echo "</div>";
+
+                // Selector de Actividad (solo si ya hay un grupo seleccionado)
+                if ($id_grupo_seleccionado) {
+                    echo "<div style='margin-bottom:10px;'>";
+                    echo "<label for='id_actividad_notas'>Seleccione Actividad Evaluable:</label> ";
+                    $sql_actividades_grupo = "SELECT id_actividad, titulo_actividad, tipo_actividad FROM ACTIVIDADES_EVALUABLES WHERE id_grupo_fk = ? ORDER BY fecha_publicacion DESC, titulo_actividad";
+                    $stmt_actividades = mysqli_prepare($conn, $sql_actividades_grupo);
+                    if ($stmt_actividades) {
+                        mysqli_stmt_bind_param($stmt_actividades, "i", $id_grupo_seleccionado);
+                        mysqli_stmt_execute($stmt_actividades);
+                        $result_actividades = mysqli_stmt_get_result($stmt_actividades);
+                        echo "<select name='id_actividad' id='id_actividad_notas' style='padding: 8px; border-radius: 4px;' onchange='this.form.submit();'>"; // Enviar al cambiar actividad
+                        echo "<option value=''>-- Elija una actividad --</option>";
+                        if (mysqli_num_rows($result_actividades) > 0) {
+                            while ($actividad = mysqli_fetch_assoc($result_actividades)) {
+                                $selected_act = ($id_actividad_seleccionada == $actividad['id_actividad']) ? "selected" : "";
+                                echo "<option value='" . htmlspecialchars($actividad['id_actividad']) . "' $selected_act>" . htmlspecialchars($actividad['titulo_actividad'] . " (" . $actividad['tipo_actividad'] . ")") . "</option>";
+                            }
+                        } else {
+                            echo "<option value=''>No hay actividades para este grupo</option>";
+                        }
+                        echo "</select>";
+                        mysqli_stmt_close($stmt_actividades);
+                    } else {
+                        echo "<p>Error al cargar actividades.</p>";
+                    }
+                    echo "</div>";
+                }
+                // No necesitamos un botón de submit explícito si los onchange funcionan
+                // echo "<button type='submit' style='padding: 8px 12px; background-color: #007bff; color:white; border:none; border-radius:4px;'>Cargar Notas</button>";
+                echo "</form>";
+
+
+                // Paso 3: Mostrar lista de estudiantes y formulario para ingresar notas
+                if ($id_grupo_seleccionado && $id_actividad_seleccionada) {
+                    // Obtener info de la actividad seleccionada (ej: max_calificacion)
+                    $actividad_info_sql = "SELECT titulo_actividad, max_calificacion FROM ACTIVIDADES_EVALUABLES WHERE id_actividad = ? AND id_grupo_fk = ?";
+                    $stmt_act_info = mysqli_prepare($conn, $actividad_info_sql);
+                    $max_calif_actividad = 5.0; // Default
+                    $titulo_act_display = "Actividad no encontrada";
+                    if($stmt_act_info){
+                        mysqli_stmt_bind_param($stmt_act_info, "ii", $id_actividad_seleccionada, $id_grupo_seleccionado);
+                        mysqli_stmt_execute($stmt_act_info);
+                        $result_act_info = mysqli_stmt_get_result($stmt_act_info);
+                        if($act_data = mysqli_fetch_assoc($result_act_info)){
+                            $max_calif_actividad = (float)$act_data['max_calificacion'];
+                            $titulo_act_display = htmlspecialchars($act_data['titulo_actividad']);
+                        }
+                        mysqli_stmt_close($stmt_act_info);
+                    }
+                    
+                    echo "<hr style='margin:25px 0;'><h3>Ingresar/Modificar Notas para: " . $titulo_act_display . "</h3>";
+                    echo "<p><strong>Calificación Máxima Permitida:</strong> " . $max_calif_actividad . "</p>";
+
+                    $sql_estudiantes_notas = "SELECT u.id_usuario, u.nombres, u.apellidos, me.id_matricula, nea.calificacion_obtenida, nea.observaciones_profesor
+                                              FROM USUARIOS u
+                                              JOIN MATRICULAS_ESTUDIANTES me ON u.id_usuario = me.id_estudiante_fk
+                                              LEFT JOIN NOTAS_ESTUDIANTE_ACTIVIDAD nea ON me.id_matricula = nea.id_matricula_fk AND nea.id_actividad_fk = ?
+                                              WHERE me.id_grupo_fk = ? AND u.estado = 'activo' AND me.estado_matricula = 'Activa'
+                                              ORDER BY u.apellidos, u.nombres";
+                    $stmt_estudiantes_notas = mysqli_prepare($conn, $sql_estudiantes_notas);
+                    if ($stmt_estudiantes_notas) {
+                        mysqli_stmt_bind_param($stmt_estudiantes_notas, "ii", $id_actividad_seleccionada, $id_grupo_seleccionado);
+                        mysqli_stmt_execute($stmt_estudiantes_notas);
+                        $result_estudiantes_notas = mysqli_stmt_get_result($stmt_estudiantes_notas);
+
+                        if (mysqli_num_rows($result_estudiantes_notas) > 0) {
+                            echo "<form action='dashboard.php?action=guardar_notas_actividad' method='post'>"; // Acción para guardar
+                            echo "<input type='hidden' name='id_grupo_fk' value='" . htmlspecialchars($id_grupo_seleccionado) . "'>";
+                            echo "<input type='hidden' name='id_actividad_fk' value='" . htmlspecialchars($id_actividad_seleccionada) . "'>";
+                            echo "<table border='1' style='width:100%; border-collapse: collapse; margin-bottom: 20px;'>";
+                            echo "<thead><tr><th>Estudiante</th><th>Calificación (0 - " . $max_calif_actividad . ")</th><th>Observaciones</th></tr></thead>";
+                            echo "<tbody>";
+                            while($estudiante = mysqli_fetch_assoc($result_estudiantes_notas)) {
+                                echo "<tr>";
+                                echo "<td>" . htmlspecialchars($estudiante['apellidos'] . ", " . $estudiante['nombres']) . "</td>";
+                                echo "<td><input type='number' name='notas[" . $estudiante['id_matricula'] . "][calificacion]' 
+                                               value='" . htmlspecialchars($estudiante['calificacion_obtenida'] ?? '') . "' 
+                                               step='0.01' min='0' max='" . $max_calif_actividad . "' style='width:80px; padding:5px;'></td>";
+                                echo "<td><input type='text' name='notas[" . $estudiante['id_matricula'] . "][observaciones]' 
+                                               value='" . htmlspecialchars($estudiante['observaciones_profesor'] ?? '') . "' style='width:98%; padding:5px;'></td>";
+                                echo "</tr>";
+                            }
+                            echo "</tbody></table>";
+                            echo "<button type='submit' name='guardar_notas' style='padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;'>Guardar Notas</button>";
+                            echo "</form>";
+                        } else {
+                            echo "<p>No hay estudiantes activos matriculados en este grupo para calificar esta actividad.</p>";
+                        }
+                        mysqli_stmt_close($stmt_estudiantes_notas);
+                    } else {
+                        error_log("Error al preparar consulta de estudiantes para notas: " . mysqli_error($conn));
+                        echo "<p>Error al cargar la lista de estudiantes.</p>";
+                    }
+                }
+            } else {
+                echo "<p>No tienes grupos asignados.</p>";
+            }
+            mysqli_stmt_close($stmt_grupos_notas);
+        } else {
+            error_log("Error al preparar consulta de grupos para notas: " . mysqli_error($conn));
+            echo "<p>Error al cargar tus grupos.</p>";
+        }
+        break;
+
+    // ... (otros casos del switch) ...
+    case 'publicar_notas_definitivas': echo "<h2>Publicar Notas Definitivas</h2><p>(Funcionalidad en desarrollo)</p>"; break;
+    case 'enviar_mensajes_alertas': echo "<h2>Enviar Mensajes/Alertas</h2><p>(Funcionalidad en desarrollo)</p>"; break;
+    case 'cargar_informes_profesor': echo "<h2>Cargar Informes</h2><p>(Funcionalidad en desarrollo)</p>"; break;
+    case 'inicio_profesor':
+    default:
+        echo "<h2>Panel Principal del Profesor</h2>";
+        echo "<p>Selecciona una opción del menú para comenzar.</p>";
+        break;
+}
+?>

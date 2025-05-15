@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso - Plataforma de Notas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400&family=IBM+Plex+Serif:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="main-header">
+        <nav>
+            <ul>
+                <li><a href="index.html">INICIO</a></li>
+                <li><a href="mi_empresa/index.html">NOSOTROS</a></li>
+                <li><a href="Soporte_Especializado/index.html">SERVICIOS</a></li>
+                <li><a href="registro.html">REGISTRESE</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="content-wrapper">
+        <section class="info-text">
+            <h1>Plataforma de Notas, Comunicación, Estadísticas</h1>
+            <p>Información actualizada y siempre disponible, comunicación directa, mensajes, tareas, inasistencias y mucho más</p>
+        </section>
+
+        <section class="login-container">
+
+            <form action="php/login_process.php" method="post">
+                <input type="email" id="username" name="correo_electronico" placeholder="Correo / Usuario" required>
+                <input type="password" id="password" name="contrasena" placeholder="Contraseña" required>
+                <button type="submit" class="login-button">INGRESAR</button>
+            </form>
+            <!--<form action="#" method="post">
+                <input type="text" id="username" name="username" placeholder="Correo / Usuario" required>
+                <input type="password" id="password" name="password" placeholder="Contraseña" required>
+                <button type="submit" class="login-button">INGRESAR</button>
+            </form>-->
+        </section>
+    </main>
+
+    <section class="additional-content">
+
+        <img src="imagenes/imagen_central.jpg" alt="Ilustración Plataforma Educativa" class="centered-image">
+
+        <div class="centered-title">
+            <h2>Plataforma de Notas</h2>
+            <p class="sub-title">Software De Gestión Educativa</p>
+        </div>
+
+        <div class="content-row image-left">
+            <img src="imagenes/imagen_informes.jpg" alt="Icono de Informes Académicos" class="content-image">
+            <div class="content-text">
+                <h3>Informes académicos</h3>
+                <p>
+                    Los informes académicos universitarios son documentos detallados que resumen el progreso y rendimiento de un estudiante. Incluyen calificaciones, créditos obtenidos, promedio general y, a menudo, comentarios cualitativos sobre el desempeño en cursos específicos, proporcionando una visión completa de la trayectoria educativa.
+                </p>
+            </div>
+        </div>
+
+        <div class="content-row image-right">
+            <div class="content-text">
+                <h3>Certificados de Notas</h3>
+                <p>
+                    Un certificado de notas universitario es un documento oficial emitido por la institución que valida las calificaciones obtenidas por un estudiante en las asignaturas cursadas durante un período específico o toda su carrera. Es fundamental para procesos de admisión, convalidaciones, becas o trámites laborales.
+                </p>
+            </div>
+            <img src="imagenes/imagen_certificados.jpg" alt="Icono de Certificados de Notas" class="content-image">
+        </div>
+
+        <div class="content-row image-left">
+            <img src="imagenes/imagen_inasistencias.jpg" alt="Icono de Registro de Inasistencias" class="content-image">
+            <div class="content-text">
+                <h3>Inasistencias</h3>
+                <p>
+                    El seguimiento de la asistencia es crucial en el entorno universitario. Nuestra plataforma permite a los docentes registrar fácilmente las inasistencias y a los estudiantes y acudientes consultarlas. Mantente informado sobre el cumplimiento de los requisitos de asistencia de cada asignatura y recibe notificaciones relevantes.
+                </p>
+            </div>
+        </div>
+
+        <div class="content-row image-right">
+            <div class="content-text">
+                <h3>Tareas y Trabajos</h3>
+                <p>
+                    Gestiona todas tus tareas, proyectos y trabajos desde un solo lugar. La plataforma facilita la publicación de enunciados por parte de los docentes, la entrega digital por parte de los estudiantes, el seguimiento de fechas límite y la recepción de calificaciones y retroalimentación, optimizando el flujo de trabajo académico.
+                </p>
+            </div>
+            <img src="imagenes/imagen_tareas.jpg" alt="Icono de Tareas y Trabajos" class="content-image">
+        </div>
+
+        <div class="content-row image-left">
+            <img src="imagenes/imagen_evaluaciones.jpg" alt="Icono de Calendario de Evaluaciones" class="content-image">
+            <div class="content-text">
+                <h3>Evaluaciones</h3>
+                <p>
+                    Consulta el calendario de evaluaciones, revisa los tipos de exámenes (parciales, finales, quices) y accede a tus resultados detallados. La plataforma centraliza la información sobre todas las instancias evaluativas, permitiendo una mejor preparación y seguimiento del rendimiento académico a lo largo del semestre.
+                </p>
+            </div>
+        </div>
+
+    </section>
+    <footer class="main-footer">
+        <p>&copy; 2025 Todos los izquierdos reservados</p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevWeb Solutions</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header>
+        <nav>
+            <ul>
+                <li><a href="../index.html">INICIO</a></li>
+            </ul>
+        </nav>
+    <div class="container">
+      <h1>DevWeb Solutions</h1>
+      <p>Desarrollamos aplicaciones web con HTML5, CSS3 y PHP</p>
+    </div>
+  </header>
+
+  <section class="about">
+    <div class="container">
+      <h2>¿Quiénes somos?</h2>
+      <p>Somos una empresa apasionada por el desarrollo web moderno. Utilizamos tecnologías como <strong>HTML5</strong>, <strong>CSS3</strong> y <strong>PHP</strong> para crear soluciones a medida, seguras y eficientes para nuestros clientes.</p>
+      <img src="img/laptop.jpg" alt="Equipo de desarrollo">
+    </div>
+  </section>
+
+  <section class="services">
+    <div class="container">
+      <h2>Nuestros servicios</h2>
+      <div class="card">
+        <img src="img/code.jpg" alt="HTML y CSS">
+        <h3>Diseño Web</h3>
+        <p>Diseñamos interfaces atractivas y responsivas utilizando HTML5 y CSS3.</p>
+      </div>
+      <div class="card">
+        <img src="img/php.jpg" alt="Código PHP">
+        <h3>Desarrollo Backend</h3>
+        <p>Programamos la lógica de tus aplicaciones usando PHP y bases de datos como MySQL.</p>
+      </div>
+    </div>
+  </section>
+<section class="contacto">
+  <div class="container">
+    <h2>Contáctanos</h2>
+    <form action="contacto/procesar_formulario.php" method="POST">
+      <label for="nombre">Nombre:</label>
+      <input type="text" id="nombre" name="nombre" required>
+
+      <label for="correo">Correo electrónico:</label>
+      <input type="email" id="correo" name="correo" required>
+
+      <label for="asunto">Asunto:</label>
+      <input type="text" id="asunto" name="asunto" required>
+
+      <label for="mensaje">Mensaje:</label>
+      <textarea id="mensaje" name="mensaje" rows="5" required></textarea>
+
+      <button type="submit">Enviar mensaje</button>
+    </form>
+  </div>
+</section>
+
+  <footer>
+    <p>&copy; 2025 - Todos los izquierdos reservados</p>
+  </footer>
+</body>
+</html>

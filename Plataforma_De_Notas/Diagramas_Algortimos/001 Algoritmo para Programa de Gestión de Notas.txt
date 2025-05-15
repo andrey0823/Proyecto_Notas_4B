@@ -1,0 +1,301 @@
+Estructura Principal:
+
+INICIO
+    MOSTRAR pantalla de login
+    REPETIR
+        SOLICITAR usuario y contraseña
+        VALIDAR credenciales
+        SI credenciales válidas ENTONCES
+            OBTENER rol del usuario (estudiante, profesor, administrador)
+            SEGÚN rol:
+                CASO "estudiante":
+                    LLAMAR módulo_estudiante(usuario)
+                CASO "profesor":
+                    LLAMAR módulo_profesor(usuario)
+                CASO "administrador":
+                    LLAMAR módulo_administrador()
+                OTRO CASO:
+                    MOSTRAR "Rol no reconocido"
+        SINO
+            MOSTRAR "Credenciales inválidas"
+        FIN SI
+    HASTA QUE credenciales válidas O intentos > 3
+FIN
+
+
+Módulo Estudiante
+
+FUNCIÓN módulo_estudiante(usuario)
+    REPETIR
+        MOSTRAR menú:
+            1. Consultar notas
+            2. Ver asistencia
+            3. Ver informes
+            4. Ver tareas asignadas
+            5. Ver evaluaciones
+            6. Salir
+        
+        LEER opción
+        SEGÚN opción:
+            CASO 1:
+                MOSTRAR notas del estudiante (usuario)
+            CASO 2:
+                MOSTRAR registro de asistencia del estudiante (usuario)
+            CASO 3:
+                MOSTRAR informes del estudiante (usuario)
+            CASO 4:
+                MOSTRAR tareas y trabajos asignados al estudiante (usuario)
+            CASO 5:
+                MOSTRAR evaluaciones del estudiante (usuario)
+            CASO 6:
+                SALIR
+            OTRO CASO:
+                MOSTRAR "Opción no válida"
+    HASTA QUE opción == 6
+FIN FUNCIÓN
+
+
+Módulo Profesor
+
+FUNCIÓN módulo_profesor(usuario)
+    REPETIR
+        MOSTRAR menú:
+            1. Cargar/modificar notas
+            2. Publicar notas definitivas
+            3. Enviar mensajes/alertas
+            4. Registrar asistencia
+            5. Cargar informes
+            6. Asignar tareas/trabajos
+            7. Cargar evaluaciones
+            8. Salir
+        
+        LEER opción
+        SEGÚN opción:
+            CASO 1:
+                MOSTRAR lista estudiantes
+                SELECCIONAR estudiante
+                CARGAR/MODIFICAR notas
+                GUARDAR cambios
+            CASO 2:
+                SELECCIONAR curso/grupo
+                PUBLICAR notas definitivas
+            CASO 3:
+                SELECCIONAR destinatarios
+                ESCRIBIR mensaje
+                ENVIAR mensaje/alertas
+            CASO 4:
+                SELECCIONAR curso/grupo
+                REGISTRAR asistencia estudiantes
+            CASO 5:
+                SELECCIONAR estudiante
+                CARGAR informe
+            CASO 6:
+                SELECCIONAR curso/grupo
+                CREAR tarea/trabajo
+                ASIGNAR a estudiantes
+            CASO 7:
+                SELECCIONAR curso/grupo
+                CREAR evaluación
+                ASIGNAR a estudiantes
+            CASO 8:
+                SALIR
+            OTRO CASO:
+                MOSTRAR "Opción no válida"
+    HASTA QUE opción == 8
+FIN FUNCIÓN
+
+
+Módulo Administrador
+
+FUNCIÓN módulo_administrador()
+    REPETIR
+        MOSTRAR menú:
+            1. Gestionar usuarios
+            2. Generar/cambiar contraseñas
+            3. Asignar roles
+            4. Verificar/modificar información
+            5. Eliminar información
+            6. Salir
+        
+        LEER opción
+        SEGÚN opción:
+            CASO 1:
+                MOSTRAR opciones:
+                    a. Crear usuario
+                    b. Modificar usuario
+                    c. Eliminar usuario
+                EJECUTAR acción seleccionada
+            CASO 2:
+                SELECCIONAR usuario
+                GENERAR/CAMBIAR contraseña
+            CASO 3:
+                SELECCIONAR usuario
+                ASIGNAR/MODIFICAR rol
+            CASO 4:
+                BUSCAR información
+                VERIFICAR/MODIFICAR información
+            CASO 5:
+                BUSCAR información
+                ELIMINAR información (con confirmación)
+            CASO 6:
+                SALIR
+            OTRO CASO:
+                MOSTRAR "Opción no válida"
+    HASTA QUE opción == 6
+FIN FUNCIÓN
+
+
+Diagrama de flujo Mermaid
+
+flowchart TD
+    A[Inicio] --> B[Pantalla de Login]
+    B --> C{Validar Credenciales}
+    C -->|Válidas| D[Obtener Rol]
+    C -->|Inválidas| B
+    
+    D -->|Estudiante| E[Módulo Estudiante]
+    D -->|Profesor| F[Módulo Profesor]
+    D -->|Administrador| G[Módulo Administrador]
+    
+    E --> E1[Consultar Notas]
+    E --> E2[Ver Asistencia]
+    E --> E3[Ver Informes]
+    E --> E4[Ver Tareas]
+    E --> E5[Ver Evaluaciones]
+    
+    F --> F1[Cargar/Modificar Notas]
+    F --> F2[Publicar Notas]
+    F --> F3[Enviar Mensajes]
+    F --> F4[Registrar Asistencia]
+    F --> F5[Cargar Informes]
+    F --> F6[Asignar Tareas]
+    F --> F7[Cargar Evaluaciones]
+    
+    G --> G1[Gestionar Usuarios]
+    G --> G2[Gestionar Contraseñas]
+    G --> G3[Asignar Roles]
+    G --> G4[Verificar/Modificar Info]
+    G --> G5[Eliminar Info]
+    
+    E --> H{¿Salir?}
+    F --> H
+    G --> H
+    H -->|No| D
+    H -->|Sí| I[Fin]
+
+
+Diagrama de Secuencia Mermaid
+
+sequenceDiagram
+    actor Usuario
+    participant Sistema
+    participant BaseDatos
+    
+    Usuario->>Sistema: Ingresa credenciales (usuario/contraseña)
+    Sistema->>BaseDatos: Validar credenciales
+    alt Credenciales válidas
+        BaseDatos-->>Sistema: Devuelve rol (estudiante, profesor, admin)
+        Sistema-->>Usuario: Muestra menú según rol
+        
+        alt Rol: Estudiante
+            Usuario->>Sistema: Selecciona opción (notas, asistencia, etc.)
+            Sistema->>BaseDatos: Consulta información
+            BaseDatos-->>Sistema: Devuelve datos solicitados
+            Sistema-->>Usuario: Muestra información
+        else Rol: Profesor
+            Usuario->>Sistema: Selecciona acción (cargar notas, registrar asistencia, etc.)
+            Sistema->>BaseDatos: Actualiza/consulta información
+            BaseDatos-->>Sistema: Confirma operación
+            Sistema-->>Usuario: Muestra confirmación
+        else Rol: Administrador
+            Usuario->>Sistema: Selecciona gestión (usuarios, contraseñas, roles)
+            Sistema->>BaseDatos: Ejecuta operación CRUD
+            BaseDatos-->>Sistema: Confirma operación
+            Sistema-->>Usuario: Muestra resultado
+        end
+    else Credenciales inválidas
+        Sistema-->>Usuario: Muestra error
+    end
+
+
+Diagrama de Clases Mermaid
+
+classDiagram
+    class Usuario {
+        <<abstract>>
+        -String id
+        -String nombre
+        -String email
+        -String contraseña
+        +login()
+        +cambiarContraseña()
+    }
+
+    class Estudiante {
+        -String carrera
+        -int semestre
+        +consultarNotas()
+        +verAsistencia()
+        +verTareas()
+    }
+
+    class Profesor {
+        -String departamento
+        -String[] cursosAsignados
+        +cargarNotas()
+        +registrarAsistencia()
+        +publicarNotas()
+        +asignarTareas()
+    }
+
+    class Administrador {
+        +crearUsuario()
+        +eliminarUsuario()
+        +asignarRol()
+        +generarContraseña()
+    }
+
+    class Curso {
+        -String codigo
+        -String nombre
+        -int creditos
+        -Profesor profesor
+        -Estudiante[] estudiantes
+    }
+
+    class Nota {
+        -Estudiante estudiante
+        -Curso curso
+        -float[] calificaciones
+        -float definitiva
+        +calcularDefinitiva()
+    }
+
+    class Asistencia {
+        -Date fecha
+        -Estudiante estudiante
+        -Curso curso
+        -bool presente
+    }
+
+    class Tarea {
+        -String id
+        -String descripcion
+        -Date fechaEntrega
+        -float peso
+        -Curso curso
+    }
+
+    Usuario <|-- Estudiante
+    Usuario <|-- Profesor
+    Usuario <|-- Administrador
+
+    Profesor "1" -- "*" Curso: imparte
+    Estudiante "1" -- "*" Curso: matriculado en
+
+    Curso "1" -- "*" Nota: tiene
+    Curso "1" -- "*" Asistencia: registra
+    Curso "1" -- "*" Tarea: contiene
+
+    Estudiante "1" -- "*" Nota: tiene
+    Estudiante "1" -- "*" Asistencia: tiene
